@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>4_5</title>
+</head>
+
+<style>
+    body {
+        background-color: #ccc;
+        font-family: sans-serif;
+    }
+
+    input[type="number"] {
+        width: 50px;
+    }
+
+    table {
+        border-collapse: collapse;
+        border: 2px solid rgb(200, 200, 200);
+        width: 75%;
+    }
+
+    th, td {
+        border: 1px solid rgb(100, 33, 100);
+    }
+
+    td {
+        padding: 0.5rem;
+    }
+</style>
+
+<script src="//cdnjs.cloudflare.com/ajax/libs/p5.js/0.5.7/p5.js"></script>
+<body>
+<p>Enter values and click apply(mandatory). By default, it will show original drawing. <br>
+    <b>Warning:</b> Do not recommend to shear in both axis.</p>
+<table>
+    <tr>
+        <th>Translation</th>
+        <th>Scaling</th>
+        <th>Rotation</th>
+        <th>Shear</th>
+        <th>Actions</th>
+        <th>Matrix:</th>
+    </tr>
+    <tr>
+        <td>
+            <label for="tx">tx:</label>
+            <input type="number" id="tx" name="tx">
+            <br> <!-- not a good practice to use br tho -->
+            <label for="ty">ty:</label>
+            <input type="number" id="ty" name="ty">
+
+        </td>
+        <td>
+            <label for="sx">sx:</label>
+            <input type="number" id="sx" name="sx">
+            <br>
+            <label for="sy">sy:</label>
+            <input type="number" id="sy" name="sy">
+        </td>
+        <td>
+            <label for="angle">angle:</label>
+            <input type="number" id="angle" name="angle">
+        </td>
+        <td>
+            <label for="shx">shx:</label>
+            <input type="number" id="shx" name="shx">
+            <br>
+            <label for="shy">shy:</label>
+            <input type="number" id="shy" name="shy">
+        </td>
+        <td>
+            <button onclick="mainAlgorithm()">Apply</button>
+            <button onclick="clearBuffers()">Clean</button>
+        </td>
+        <td>
+            <p id="placeToShow1Row"></p>
+            <p id="placeToShow2Row"></p>
+            <p id="placeToShow3Row"></p>
+        </td>
+    </tr>
+</table>
+
+
+<script type="text/javascript">
+    let imgA, imgB, vectorStorage = [];
+
+    const txVal = document.getElementById('tx');
+    const tyVal = document.getElementById('ty');
+    const sx = document.getElementById('sx');
+    const sy = document.getElementById('sy');
+    const angle = document.getElementById('angle');
+    const shx = document.getElementById('shx');
+    const shy = document.getElementById('shy');
+
+    let valArr = [txVal, tyVal, sx, sy, angle, shx, shy];
+
+    function setup() {
+        createCanvas(512, 512);
+        background(255);
+        imgA = createImage(width, height);
+        imgB = createImage(width, height);
+        imgA.loadPixels();
+        imgB.loadPixels();
+        var d = pixelDensity();
+        for (var i = 0; i < width * height * 4 * d; i += 4) {
+            imgA.pixels[i] = 240;
+            imgA.pixels[i + 1] = 250;
+            imgA.pixels[i + 2] = 240;
+            imgA.pixels[i + 3] = 255;
+
+            imgB.pixels[i] = 240;
+            imgB.pixels[i + 1] = 240;
+            imgB.pixels[i + 2] = 250;
+            imgB.pixels[i + 3] = 255;
+        }
+        imgA.updatePixels();
+        imgB.updatePixels();
+    }
+
+    function draw() {
+        if (!keyIsDown(32)) {
+            image(imgA, 0, 0);
+            text('Image A', 10, 20);
+        } else {
+            image(imgB, 0, 0);
+            text('Image B', 10, 20);
+        }
+    }
+
+    function makeVector(x, y) {
+        return [x, y, 1];
+    }
+
+    function drawVector(img, vec) {
+        img.set(vec[0], vec[1], color(0));
+        img.updatePixels();
+    }
+
+    function mouseDragged() {
+        let vector = makeVector(mouseX, mouseY);
+        vectorStorage.push(vector);
+        drawVector(imgA, vector);
+    }
+
+    function clearBuffers() {
+        const d = pixelDensity();
+        for (let i = 0; i < width * height * 4 * d; i += 4) {
+            imgA.pixels[i] = 240;
+            imgA.pixels[i + 1] = 250;
+            imgA.pixels[i + 2] = 240;
+            imgA.pixels[i + 3] = 255;
+
+            imgB.pixels[i] = 240;
+            imgB.pixels[i + 1] = 240;
+            imgB.pixels[i + 2] = 250;
+            imgB.pixels[i + 3] = 255;
+        }
+        imgA.updatePixels();
+        imgB.updatePixels();
+        vectorStorage = [];
+    }
+
+    function mainAlgorithm() {
+        clearBufferB();
+
+        if (inputExists()) {
+            let shearRotatMatrix = matrixMultiplication(makeShear(valArr[5].value, valArr[6].value), makeRotation(valArr[4].value));
+            let scalMatr = matrixMultiplication(shearRotatMatrix, makeScaling(valArr[2].value, valArr[3].value));
+            let final = matrixMultiplication(makeTranslation(valArr[0].value, valArr[1].value), scalMatr);
+
+            for (let i = 0; i < vectorStorage.length; i++) {
+                drawVector(imgB, applyMatr(final, vectorStorage[i]));
+            }
+        } else {
+            for (let i = 0; i < vectorStorage.length; i++) {
+                drawVector(imgB, applyMatr(makeIdentity(), vectorStorage[i]));
+            }
+        }
+    }
+
+    function inputExists() {
+        let isValue = false;
+        for (let i = 0; i < valArr.length; i++) {
+            if (valArr[i].value !== "") isValue = true;
+            else valArr[i].value = 0;
+        }
+        return isValue;
+    }
+
+    function applyMatr(matrix, vector) {
+        let finalMatrix = [0, 0, 0];
+        for (let row = 0; row < matrix.length; row++) {
+            for (let col = 0; col < matrix[row].length; col++) {
+                finalMatrix[row] += vector[col] * matrix[row][col];
+            }
+        }
+        return finalMatrix;
+    }
+
+    function clearBufferB() {
+        const d = pixelDensity();
+        for (let i = 0; i < width * height * 4 * d; i += 4) {
+            imgB.pixels[i] = 240;
+            imgB.pixels[i + 1] = 240;
+            imgB.pixels[i + 2] = 250;
+            imgB.pixels[i + 3] = 255;
+        }
+        imgB.updatePixels();
+    }
+
+    function makeIdentity() {
+        return [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+    }
+
+    function makeTranslation(tx, ty) {
+        return [[1, 0, tx], [0, 1, ty], [0, 0, 1]]
+    }
+
+    function makeScaling(sx, sy) {
+        if (sx === 0 || sy === 0) return makeIdentity();
+        return [[sx, 0, 0], [0, sy, 0], [0, 0, 1]];
+    }
+
+    function makeRotation(a) {//a - angle in degrees
+        if (a === 0) return makeIdentity();
+        a = (a / 180) * Math.PI;
+        return [[Math.cos(a), -Math.sin(a), 0], [Math.sin(a), Math.cos(a), 0], [0, 0, 1]];
+    }
+
+    function makeShear(shx, shy) {
+        return [[1, shx, 0], [shy, 1, 0], [0, 0, 1]];
+    }
+
+    function matrixMultiplication(matrix1, matrix2) {
+        let finalMatrix = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+
+        for (let row = 0; row < matrix1.length; row++) {
+            for (let col = 0; col < matrix2.length; col++) {
+                for (let col2 = 0; col2 < matrix2.length; col2++) {
+                    finalMatrix[row][col] += matrix1[row][col2] * matrix2[col2][col];
+                }
+            }
+        }
+
+        document.getElementById("placeToShow1Row").innerHTML = finalMatrix[0];
+        document.getElementById("placeToShow2Row").innerHTML = finalMatrix[1];
+        document.getElementById("placeToShow3Row").innerHTML = finalMatrix[2];
+
+        return finalMatrix;
+    }
+</script>
+</body>
+</html>
